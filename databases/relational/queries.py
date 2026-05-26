@@ -639,7 +639,7 @@ def execute_cancellation(booking_id: str, user_id: str) -> tuple[bool, dict | st
             cancellation_time = datetime.now(timezone.utc)
             departure_dt_tz = departure_dt.replace(tzinfo=timezone.utc)
             if departure_dt_tz < cancellation_time:
-                cancellation_time = booked_at + timedelta(hours=1)
+                return False, "Cannot cancel a booking after the train has departed."
                 
             hours_diff = (departure_dt_tz - cancellation_time).total_seconds() / 3600.0
             

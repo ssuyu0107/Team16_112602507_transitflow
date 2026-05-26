@@ -68,8 +68,8 @@ CREATE TABLE metro_schedules (
                                REFERENCES metro_stations(station_id),
     first_train_time       TIME         NOT NULL,
     last_train_time        TIME         NOT NULL,
-    base_fare_usd          NUMERIC(6,2) NOT NULL,
-    per_stop_rate_usd      NUMERIC(6,2) NOT NULL,
+    base_fare_usd          NUMERIC(6,2) NOT NULL CHECK (base_fare_usd >= 0),
+    per_stop_rate_usd      NUMERIC(6,2) NOT NULL CHECK (per_stop_rate_usd >= 0),
     frequency_min          INTEGER      NOT NULL CHECK (frequency_min > 0)
 );
 
@@ -89,7 +89,7 @@ CREATE TABLE metro_schedule_stops (
     station_id                   VARCHAR(10)  NOT NULL
                                      REFERENCES metro_stations(station_id),
     stop_order                   INTEGER      NOT NULL,  -- 1-based，1 = 起點
-    travel_time_from_origin_min  INTEGER      NOT NULL,
+    travel_time_from_origin_min  INTEGER      NOT NULL CHECK (travel_time_from_origin_min >= 0),
     PRIMARY KEY (schedule_id, station_id)
 );
 
@@ -145,7 +145,7 @@ CREATE TABLE national_rail_stops (
     station_id                   VARCHAR(10)  NOT NULL
                                      REFERENCES national_rail_stations(station_id),
     stop_order                   INTEGER      NOT NULL,
-    travel_time_from_origin_min  INTEGER      NOT NULL,
+    travel_time_from_origin_min  INTEGER      NOT NULL CHECK (travel_time_from_origin_min >= 0),
     is_stop                      BOOLEAN      NOT NULL DEFAULT TRUE,  -- FALSE = 快車通過站
     PRIMARY KEY (schedule_id, station_id)
 );
@@ -155,8 +155,8 @@ CREATE TABLE national_rail_fares (
     schedule_id        VARCHAR(20)       NOT NULL
                            REFERENCES national_rail_schedules(schedule_id) ON DELETE CASCADE,
     fare_class         fare_class_enum   NOT NULL,
-    base_fare_usd      NUMERIC(8,2)      NOT NULL,
-    per_stop_rate_usd  NUMERIC(8,2)      NOT NULL,
+    base_fare_usd      NUMERIC(8,2)      NOT NULL CHECK (base_fare_usd >= 0),
+    per_stop_rate_usd  NUMERIC(8,2)      NOT NULL CHECK (per_stop_rate_usd >= 0),
     PRIMARY KEY (schedule_id, fare_class)
 );
 
