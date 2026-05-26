@@ -21,6 +21,7 @@ Functions prefixed with `query_` are called by the agent (skeleton/agent.py).
 """
 
 from __future__ import annotations
+import math
 
 from typing import Optional
 
@@ -69,7 +70,7 @@ def query_shortest_route(
             except Exception:
                 record = None
                 
-            if not record or not record["path"]:
+            if not record or not record["path"] or (record.get("weight") is not None and math.isnan(record.get("weight"))):
                 cypher_fallback = """
                     MATCH (start {station_id: $origin_id})
                     MATCH (end {station_id: $destination_id})
@@ -119,7 +120,7 @@ def query_shortest_route(
                 "found": True,
                 "origin_id": origin_id,
                 "destination_id": destination_id,
-                "total_time_min": int(total_time),
+                "total_time_min": int(total_time) if total_time and not math.isnan(total_time) else 0,
                 "path": stations,
                 "legs": legs
             }
@@ -134,72 +135,50 @@ def query_cheapest_route(
     fare_class: str = "standard",
 ) -> dict:
     """
-    Find the cheapest path between two stations, minimising total estimated fare.
+    Find the cheapest path using Dijkstra algorithm on price weights.
     """
+    # 根據艙等決定要使用的權重屬性名稱 (price_standard 或 price_first)
+    weight_property = f"price_{fare_class}"
+
     with _driver() as driver:
         with driver.session() as session:
             cypher = """
                 MATCH (start {station_id: $origin_id})
                 MATCH (end {station_id: $destination_id})
-                MATCH p = (start)-[:METRO_LINK|RAIL_LINK|INTERCHANGE_TO*..15]-(end)
-                RETURN p as path, reduce(t = 0, r in relationships(p) | t + coalesce(r.travel_time_min, 5)) as weight
-                LIMIT 5
+                CALL apoc.algo.dijkstra(start, end, 'METRO_LINK|RAIL_LINK|INTERCHANGE_TO', $weight_prop)
+                YIELD path, weight
+                RETURN path, weight
             """
-            result = session.run(cypher, origin_id=origin_id, destination_id=destination_id)
-            records = list(result)
-            if not records:
+            try:
+                result = session.run(cypher, origin_id=origin_id, destination_id=destination_id, weight_prop=weight_property)
+                record = result.single()
+            except Exception:
+                record = None
+
+            if not record or not record["path"] or (record.get("weight") is not None and math.isnan(record.get("weight"))):
                 return {"found": False, "total_fare_usd": 0.0, "stations": [], "legs": []}
-            
-            best_path = None
-            best_fare = float('inf')
-            best_legs = []
-            best_stations = []
-            
-            for rec in records:
-                path = rec["path"]
-                nodes_list = list(path.nodes)
-                rels_list = list(path.relationships)
-                
-                total_fare = 0.0
-                stations = []
-                
-                for n in nodes_list:
-                    stations.append({
-                        "station_id": n["station_id"],
-                        "name": n["name"],
-                        "lines": list(n["lines"]) if n["lines"] else []
-                    })
-                    
-                for r in rels_list:
-                    rel_type = r.type
-                    if rel_type == "METRO_LINK":
-                        total_fare += 0.5
-                    elif rel_type == "RAIL_LINK":
-                        total_fare += 1.5 if fare_class == "standard" else 2.5
-                    else:
-                        total_fare += 0.0
-                
-                if total_fare < best_fare:
-                    best_fare = total_fare
-                    best_path = path
-                    best_stations = stations
-                    
-                    best_legs = []
-                    for i in range(len(rels_list)):
-                        rel = rels_list[i]
-                        best_legs.append({
-                            "from_station_id": nodes_list[i]["station_id"],
-                            "to_station_id": nodes_list[i+1]["station_id"],
-                            "type": rel.type,
-                            "line": rel.get("line", "walk"),
-                            "travel_time_min": rel.get("travel_time_min", 5)
-                        })
-                        
+
+            path = record["path"]
+            total_fare = record["weight"]
+
+            stations = [{"station_id": n["station_id"], "name": n["name"], "lines": list(n["lines"]) if n["lines"] else []} for n in path.nodes]
+
+            legs = []
+            nodes_list = list(path.nodes)
+            for i, rel in enumerate(path.relationships):
+                legs.append({
+                    "from_station_id": nodes_list[i]["station_id"],
+                    "to_station_id": nodes_list[i+1]["station_id"],
+                    "type": rel.type,
+                    "line": rel.get("line", "walk"),
+                    "price_usd": rel.get(weight_property, 0.0)
+                })
+
             return {
                 "found": True,
-                "total_fare_usd": round(best_fare, 2),
-                "stations": best_stations,
-                "legs": best_legs
+                "total_fare_usd": round(float(total_fare), 2),
+                "stations": stations,
+                "legs": legs
             }
 
 

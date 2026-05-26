@@ -350,6 +350,10 @@ CREATE INDEX idx_payments_metro  ON payments(booking_id_metro)
 
 -- 評價：依使用者查詢
 CREATE INDEX idx_feedback_user_id ON feedback(user_id);
+-- 針對 XOR 關係的部分索引，排除空值以節省空間並加速查詢
+CREATE INDEX idx_feedback_rail ON feedback(booking_id_rail) WHERE booking_id_rail IS NOT NULL;
+CREATE INDEX idx_feedback_metro ON feedback(booking_id_metro) WHERE booking_id_metro IS NOT NULL;
+CREATE INDEX idx_payments_status ON payments(status);
 
 -- 地鐵班表：依路線查詢
 CREATE INDEX idx_metro_sched_line ON metro_schedules(line);
