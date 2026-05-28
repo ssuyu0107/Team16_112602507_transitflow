@@ -236,7 +236,10 @@ def query_metro_schedules(origin_id: str, destination_id: str) -> list[dict]:
             st_origin.travel_time_from_origin_min AS origin_time,
             st_dest.stop_order AS dest_order,
             st_dest.travel_time_from_origin_min AS dest_time,
-            (st_dest.stop_order - st_origin.stop_order) AS stops_travelled
+            (st_dest.stop_order - st_origin.stop_order) AS stops_travelled,
+            (SELECT json_agg(station_id ORDER BY stop_order) 
+             FROM metro_schedule_stops 
+             WHERE schedule_id = s.schedule_id) AS stops_in_order 
         FROM metro_schedules s
         JOIN metro_schedule_stops st_origin ON s.schedule_id = st_origin.schedule_id AND st_origin.station_id = %s
         JOIN metro_schedule_stops st_dest ON s.schedule_id = st_dest.schedule_id AND st_dest.station_id = %s
@@ -483,6 +486,13 @@ def execute_booking(
     """
     Create a national rail booking for a logged-in user.
     """
+    # 安全檢查：不允許預訂過去的日期
+    try:
+        if datetime.strptime(travel_date, "%Y-%m-%d").date() < datetime.now().date():
+            return False, "Cannot book a journey for a past date."
+    except ValueError:
+        return False, "Invalid date format (expected YYYY-MM-DD)."
+
     with _connect() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
