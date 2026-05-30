@@ -89,18 +89,17 @@ def query_national_rail_availability(
             s.service_type,
             s.direction,
             s.first_train_time,
-            st_origin.stop_order AS origin_order,
-            st_origin.travel_time_from_origin_min AS origin_time,
-            st_dest.stop_order AS dest_order,
-            st_dest.travel_time_from_origin_min AS dest_time,
-            (st_dest.stop_order - st_origin.stop_order) AS stops_travelled
+            (SELECT (idx - 1) FROM jsonb_array_elements_text(s.stops_json) WITH ORDINALITY AS x(val, idx) WHERE val = %s LIMIT 1) AS origin_idx,
+            (SELECT (idx - 1) FROM jsonb_array_elements_text(s.stops_json) WITH ORDINALITY AS x(val, idx) WHERE val = %s LIMIT 1) AS dest_idx,
+            (SELECT travel_time_from_origin_min FROM national_rail_stops WHERE schedule_id = s.schedule_id AND station_id = %s) AS origin_time,
+            (SELECT travel_time_from_origin_min FROM national_rail_stops WHERE schedule_id = s.schedule_id AND station_id = %s) AS dest_time
         FROM national_rail_schedules s
-        JOIN national_rail_stops st_origin ON s.schedule_id = st_origin.schedule_id AND st_origin.station_id = %s AND st_origin.is_stop = TRUE
-        JOIN national_rail_stops st_dest ON s.schedule_id = st_dest.schedule_id AND st_dest.station_id = %s AND st_dest.is_stop = TRUE
-        WHERE st_origin.stop_order < st_dest.stop_order
+        WHERE s.stops_json ? %s AND s.stops_json ? %s
+          AND (SELECT (idx - 1) FROM jsonb_array_elements_text(s.stops_json) WITH ORDINALITY AS x(val, idx) WHERE val = %s LIMIT 1) < (SELECT (idx - 1) FROM jsonb_array_elements_text(s.stops_json) WITH ORDINALITY AS x(val, idx) WHERE val = %s LIMIT 1)
     """
     
-    params = [origin_id, destination_id]
+    # Using denormalized JSONB 'stops_json' to avoid expensive self-joins on stops table.
+    params = [origin_id, destination_id, origin_id, destination_id, origin_id, destination_id, origin_id, destination_id]
     if day_of_week:
         sql += """
             AND EXISTS (
@@ -118,7 +117,8 @@ def query_national_rail_availability(
             
             for sch in schedules:
                 sch_id = sch["schedule_id"]
-                stops = sch["stops_travelled"]
+                # Calculate stops from JSONB index snapshot
+                stops = sch["dest_idx"] - sch["origin_idx"]
                 
                 # Calculate time
                 first_train_time = sch["first_train_time"]
@@ -232,26 +232,21 @@ def query_metro_schedules(origin_id: str, destination_id: str) -> list[dict]:
             s.base_fare_usd,
             s.per_stop_rate_usd,
             s.frequency_min,
-            st_origin.stop_order AS origin_order,
-            st_origin.travel_time_from_origin_min AS origin_time,
-            st_dest.stop_order AS dest_order,
-            st_dest.travel_time_from_origin_min AS dest_time,
-            (st_dest.stop_order - st_origin.stop_order) AS stops_travelled,
-            (SELECT json_agg(station_id ORDER BY stop_order) 
-             FROM metro_schedule_stops 
-             WHERE schedule_id = s.schedule_id) AS stops_in_order 
+            (SELECT (idx - 1) FROM jsonb_array_elements_text(s.stops_json) WITH ORDINALITY AS x(val, idx) WHERE val = %s LIMIT 1) AS origin_idx,
+            (SELECT (idx - 1) FROM jsonb_array_elements_text(s.stops_json) WITH ORDINALITY AS x(val, idx) WHERE val = %s LIMIT 1) AS dest_idx,
+            (SELECT travel_time_from_origin_min FROM metro_schedule_stops WHERE schedule_id = s.schedule_id AND station_id = %s) AS origin_time,
+            (SELECT travel_time_from_origin_min FROM metro_schedule_stops WHERE schedule_id = s.schedule_id AND station_id = %s) AS dest_time
         FROM metro_schedules s
-        JOIN metro_schedule_stops st_origin ON s.schedule_id = st_origin.schedule_id AND st_origin.station_id = %s
-        JOIN metro_schedule_stops st_dest ON s.schedule_id = st_dest.schedule_id AND st_dest.station_id = %s
-        WHERE st_origin.stop_order < st_dest.stop_order
+        WHERE s.stops_json ? %s AND s.stops_json ? %s
+          AND (SELECT (idx - 1) FROM jsonb_array_elements_text(s.stops_json) WITH ORDINALITY AS x(val, idx) WHERE val = %s LIMIT 1) < (SELECT (idx - 1) FROM jsonb_array_elements_text(s.stops_json) WITH ORDINALITY AS x(val, idx) WHERE val = %s LIMIT 1)
     """
     results = []
     with _connect() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, (origin_id, destination_id))
+            cur.execute(sql, (origin_id, destination_id, origin_id, destination_id, origin_id, destination_id, origin_id, destination_id))
             rows = cur.fetchall()
             for r in rows:
-                stops = r["stops_travelled"]
+                stops = r["dest_idx"] - r["origin_idx"]
                 base_fare = float(r["base_fare_usd"])
                 per_stop = float(r["per_stop_rate_usd"])
                 total_fare = base_fare + per_stop * stops
@@ -469,6 +464,25 @@ def query_payment_info(booking_id: str) -> Optional[dict]:
             r["amount_usd"] = float(r["amount_usd"])
             r["paid_at"] = r["paid_at"].isoformat()
             return r
+
+
+def query_service_delay(schedule_id: str, travel_date: str) -> Optional[dict]:
+    """
+    Check if a specific service was delayed on a given date.
+    Used by the agent to verify compensation eligibility.
+    """
+    sql = """
+        SELECT delay_minutes, reason_category, description
+        FROM service_delays
+        WHERE schedule_id = %s AND travel_date = %s
+    """
+    with _connect() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (schedule_id, travel_date))
+            row = cur.fetchone()
+            if not row:
+                return None
+            return dict(row)
 
 
 # ── TRANSACTIONAL OPERATIONS ──────────────────────────────────────────────────

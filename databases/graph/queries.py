@@ -137,7 +137,7 @@ def query_cheapest_route(
     """
     Find the cheapest path using Dijkstra algorithm on price weights.
     """
-    # 根據艙等決定要使用的權重屬性名稱 (price_standard 或 price_first)
+    # Determine weight attribute name by cabin class (price_standard or price_first)
     weight_property = f"price_{fare_class}"
 
     with _driver() as driver:
@@ -156,7 +156,17 @@ def query_cheapest_route(
                 record = None
 
             if not record or not record["path"] or (record.get("weight") is not None and math.isnan(record.get("weight"))):
-                return {"found": False, "total_fare_usd": 0.0, "stations": [], "legs": []}
+                # Fallback to shortest hop path if Dijkstra fails
+                cypher_fallback = """
+                    MATCH (start {station_id: $origin_id})
+                    MATCH (end {station_id: $destination_id})
+                    MATCH p = shortestPath((start)-[:METRO_LINK|RAIL_LINK|INTERCHANGE_TO*..30]-(end))
+                    RETURN p as path, size(relationships(p)) * 2.5 as weight
+                """
+                result = session.run(cypher_fallback, origin_id=origin_id, destination_id=destination_id)
+                record = result.single()
+                if not record or not record["path"]:
+                    return {"found": False, "total_fare_usd": 0.0, "stations": [], "legs": []}
 
             path = record["path"]
             total_fare = record["weight"]

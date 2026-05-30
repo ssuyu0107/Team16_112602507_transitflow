@@ -78,7 +78,8 @@ def seed():
                     MATCH (a:MetroStation {station_id: $station_id})
                     MATCH (b:MetroStation {station_id: $adj_id})
                     MERGE (a)-[r:METRO_LINK {line: $line}]->(b)
-                    SET r.travel_time_min = $travel_time_min
+                    SET r.travel_time_min = $travel_time_min,
+                        r.price_standard = 2.0, r.price_first = 2.0
                     """,
                     station_id=s["station_id"],
                     adj_id=adj["station_id"],
@@ -94,7 +95,8 @@ def seed():
                     MATCH (a:NationalRailStation {station_id: $station_id})
                     MATCH (b:NationalRailStation {station_id: $adj_id})
                     MERGE (a)-[r:RAIL_LINK {line: $line}]->(b)
-                    SET r.travel_time_min = $travel_time_min
+                    SET r.travel_time_min = $travel_time_min,
+                        r.price_standard = 5.0, r.price_first = 8.5
                     """,
                     station_id=s["station_id"],
                     adj_id=adj["station_id"],

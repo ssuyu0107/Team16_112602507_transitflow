@@ -113,8 +113,8 @@ def seed_metro_schedules(cur):
             """
             INSERT INTO metro_schedules (
                 schedule_id, line, direction, origin_station_id, destination_station_id,
-                first_train_time, last_train_time, base_fare_usd, per_stop_rate_usd, frequency_min
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                first_train_time, last_train_time, base_fare_usd, per_stop_rate_usd, frequency_min, stops_json
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (schedule_id) DO NOTHING
             """,
             (
@@ -127,7 +127,8 @@ def seed_metro_schedules(cur):
                 sch["last_train_time"],
                 sch["base_fare_usd"],
                 sch["per_stop_rate_usd"],
-                sch["frequency_min"]
+                sch["frequency_min"],
+                json.dumps(sch["stops_in_order"])
             )
         )
         for day in sch["operates_on"]:
@@ -160,8 +161,8 @@ def seed_national_rail_schedules(cur):
             """
             INSERT INTO national_rail_schedules (
                 schedule_id, line, service_type, direction, origin_station_id, destination_station_id,
-                first_train_time, last_train_time, frequency_min
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                first_train_time, last_train_time, frequency_min, stops_json
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (schedule_id) DO NOTHING
             """,
             (
@@ -173,7 +174,8 @@ def seed_national_rail_schedules(cur):
                 sch["destination_station_id"],
                 sch["first_train_time"],
                 sch["last_train_time"],
-                sch["frequency_min"]
+                sch["frequency_min"],
+                json.dumps(sch["stops_in_order"])
             )
         )
         for day in sch["operates_on"]:
@@ -467,6 +469,26 @@ def seed_feedback(cur):
         )
 
 
+def seed_service_delays(cur):
+    """Seed some mock delay data for testing compensation flows."""
+    print("  Service delays: seeding historical delay events...")
+    delays = [
+        # Match a common test date and schedule
+        ("NR_SCH01", "2025-06-01", 45, "operator_fault", "Signal failure at Old Town"),
+        ("NR_SCH03", "2025-06-01", 125, "operator_fault", "Rolling stock breakdown"),
+        ("MS_SCH01", "2025-06-01", 15, "weather", "Heavy rain causing speed restrictions")
+    ]
+    for sch_id, t_date, mins, reason, desc in delays:
+        cur.execute(
+            """
+            INSERT INTO service_delays (schedule_id, travel_date, delay_minutes, reason_category, description)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (schedule_id, travel_date) DO NOTHING
+            """,
+            (sch_id, t_date, mins, reason, desc)
+        )
+
+
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -487,6 +509,7 @@ def main():
         seed_metro_travels(cur)
         seed_payments(cur)
         seed_feedback(cur)
+        seed_service_delays(cur)
         conn.commit()
         print("\nAll done. Database seeded successfully.")
     except Exception as e:
