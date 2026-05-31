@@ -486,7 +486,7 @@ def execute_booking(
     """
     Create a national rail booking for a logged-in user.
     """
-    # 安全檢查：不允許預訂過去的日期
+    # Security check: Booking past dates is not allowed.
     try:
         if datetime.strptime(travel_date, "%Y-%m-%d").date() < datetime.now().date():
             return False, "Cannot book a journey for a past date."

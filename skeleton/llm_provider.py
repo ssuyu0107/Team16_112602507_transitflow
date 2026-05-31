@@ -194,7 +194,7 @@ class LLMProvider:
                 "messages": clean_messages,
                 "stream": False,
             }
-            r = requests.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload, timeout=5)
+            r = requests.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload, timeout=60)
             r.raise_for_status()
             return r.json()["message"]["content"]
         except Exception:

@@ -137,7 +137,7 @@ def query_cheapest_route(
     """
     Find the cheapest path using Dijkstra algorithm on price weights.
     """
-    # 根據艙等決定要使用的權重屬性名稱 (price_standard 或 price_first)
+    # Determine the weight attribute name based on the cabin class. (price_standard or price_first)
     weight_property = f"price_{fare_class}"
 
     with _driver() as driver:
