@@ -35,6 +35,9 @@ class LLMProvider:
     """
 
     def __init__(self):
+        global OLLAMA_BASE_URL
+        if "localhost" in OLLAMA_BASE_URL:
+            OLLAMA_BASE_URL = "http://127.0.0.1:11434"
         self.chat_provider = LLM_PROVIDER
         self._ollama_chat_model = OLLAMA_CHAT_MODEL
         # embed_provider tracks which model was used to seed the vectors.

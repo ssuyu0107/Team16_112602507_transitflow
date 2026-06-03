@@ -1,6 +1,12 @@
 {
   "version": "1.0",
   "last_updated": "2024-01-01",
+  "delay_compensation": {
+    "allowed": true,
+    "delay_30_to_59_mins": "Passengers are eligible for a 50% refund of the ticket price if the train is delayed by 30 to 59 minutes.",
+    "delay_60_mins_or_more": "Passengers are eligible for a 100% refund of the ticket price if the train is delayed by 60 minutes or more.",
+    "how_to_claim": "Claims must be submitted via customer service within 28 days of the scheduled journey."
+    },
   "national_rail": {
     "advance_booking": {
       "max_days_in_advance": 90,
@@ -111,5 +117,9 @@
     "lost_tickets": "Digital tickets can be retrieved via the app at any time using the booking reference. Passengers are advised to screenshot their QR code before travel in case of connectivity issues.",
     "customer_service": "Passengers with queries or complaints may contact customer service via the in-app chat, email, or station help desks. Response time is within 2 business days.",
     "dispute_resolution": "If a passenger disagrees with a refund decision, they may escalate the case to the customer service team within 14 days of the original decision."
-  }
+  },
+  "luggage_and_pets": {
+  "luggage_limit": "Each passenger is allowed up to 2 pieces of large luggage and 1 hand luggage for free. Oversized luggage may incur a $5.00 fee.",
+  "pets_policy": "Small domestic pets in secure carriers travel free. Larger dogs must be kept on a lead and wear a muzzle; they require a child-fare ticket."
+}
 }
