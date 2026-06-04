@@ -11,7 +11,7 @@
 | Full Name | Student ID | GitHub Username | Email |
 |-----------|-----------|----------------|-------|
 |**周思佑** |**112602507** |**ssuyu_0107** | |
-|**謝怡婕** |**113409503** |**xieyijie60-collab** | |
+|**謝怡婕** |**113409503** |**xieyijie60-collab** |**xieyijie60@gmail.com** |
 |**羅小語** |**112602503** |**122lo** |**fivemilk603@gmail.com** |
 
 ---
