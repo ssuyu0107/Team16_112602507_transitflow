@@ -72,7 +72,7 @@
 ### Example 2: Neo4j 最便宜路徑演算法優化 (AI 協助重構案例)
 *   **Context**: 原系統在查詢跨網最便宜路徑時，使用 Cypher 隨機盲搜 5 條路徑 `LIMIT 5`，再到 Python 層用 `for` 迴圈暴力加總，導致算出的票價經常不是全網最優解。
 *   **Prompt**: "如何優化 `query_cheapest_route`？原本限制 `LIMIT 5` 在 Python 裡硬算票價很不準，該怎麼改成真正的最短路徑演算法？"
-*   **Outcome (Error)**: AI 建議揚棄 Python 層的暴力迴圈，改呼叫 Neo4j 內建的 **Dijkstra 演算法**（`apoc.algo.dijkstra`），直接在資料庫圖形層面透過艙等權重（`$weight_prop`）精確計算全網最低票價。
+*   **Outcome**: AI 建議揚棄 Python 層的暴力迴圈，改呼叫 Neo4j 內建的 **Dijkstra 演算法**（`apoc.algo.dijkstra`），直接在資料庫圖形層面透過艙等權重（`$weight_prop`）精確計算全網最低票價。
 
 ### Example 3: 跨資料庫（PostgreSQL JSONB & Neo4j）整合除錯 (未採用 AI 修正案例)
 *   **Context**: 處理地鐵與國鐵跨網轉乘（MS01 至 NR05）時，AI Agent 出現資料撈不出與語法報錯。
