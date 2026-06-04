@@ -2,6 +2,7 @@
 TransitFlow — Intelligent Agent
 ================================
 This is the brain of the system.
+# TASK 6 EXTENSION: Added report_disruption and get_active_delays tools.
 
 HOW IT WORKS (the pipeline students should understand):
   1. User asks a natural language question
@@ -272,6 +273,26 @@ TOOLS = [
         },
         "required": ["station_id"],
     },
+    {
+        "name": "report_disruption",
+        "description": (
+            "Report a delay or disruption at a station. "
+            "Updates PostgreSQL logs and dynamically increases travel times for all connected paths in the graph."
+        ),
+        "parameters": {
+            "station_id":    {"type": "string", "description": "Station ID e.g. MS01 or NR03"},
+            "delay_minutes": {"type": "integer", "description": "Delay duration in minutes"},
+            "cause":         {"type": "string", "description": "Reason for the delay (e.g. signal failure)"},
+            "line":          {"type": "string", "description": "Optional line affected (e.g. M1)"},
+        },
+        "required": ["station_id", "delay_minutes", "cause"],
+    },
+    {
+        "name": "get_active_delays",
+        "description": "List all active transit delays and disruptions currently affecting the network.",
+        "parameters": {},
+        "required": [],
+    },
 ]
 
 TOOLS_SCHEMA = """\
@@ -286,7 +307,9 @@ cancel_booking(booking_id)
 get_user_bookings()
 search_policy(query)
 find_alternative_routes(origin_id, destination_id, avoid_station_id, network?)
-get_delay_ripple(station_id, hops?)"""
+get_delay_ripple(station_id, hops?)
+report_disruption(station_id, delay_minutes, cause, line?)
+get_active_delays()"""
 
 
 # ── Agent logic ───────────────────────────────────────────────────────────────
@@ -435,6 +458,20 @@ def _execute_tool(
                 delayed_station_id=params["station_id"],
                 hops=params.get("hops", 2),
             )
+
+        elif tool_name == "report_disruption":
+            from databases.relational.queries import report_delay_record
+            ok, msg = report_delay_record(
+                station_id=params["station_id"],
+                delay_minutes=params["delay_minutes"],
+                cause=params["cause"],
+                line=params.get("line"),
+            )
+            result = {"success": ok, "message": msg}
+
+        elif tool_name == "get_active_delays":
+            from databases.relational.queries import query_active_delays
+            result = query_active_delays()
 
         else:
             result = {"error": f"Unknown tool: {tool_name}"}

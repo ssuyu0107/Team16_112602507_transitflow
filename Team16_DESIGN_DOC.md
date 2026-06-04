@@ -93,3 +93,57 @@
 ### 6.2 生產環境差異 (Production Differences)
 本專案為簡化教學，採用 `DROP TABLE` 重建資料庫的方式。
 *   **生產環境做法**：在真實系統中，必須使用 **Database Migrations** 工具（如 Alembic 或 Flyway）。這能透過版本化的腳本實現「不丟失數據」的 Schema 變更。此外，生產環境應配置 **PgBouncer** 作為連線池管理，以應對大量 LLM 同時呼叫工具時產生的併發壓力。
+
+
+---
+
+## Section 7 — Optional Extension (Task 6 Disruption & Delay System)
+
+### 7.1 動機與系統架構 (Motivation & Architecture)
+本系統擴充了動態延誤與干擾記錄系統 (Task 6)。在真實的大眾運輸情境中，路線行車時間會因為事故、天氣或設備故障而動態改變。本設計結合了關聯式資料庫 (PostgreSQL) 的稽核日誌與圖形資料庫 (Neo4j) 的即時路網，達成以下功能：
+1. **即時記錄與稽核**：當干擾發生時，寫入 PostgreSQL 的 `delay_records` 表，保留歷史干擾日誌。
+2. **圖資權重即時傳播**：透過 Cypher 語句，動態計算所有受影響車站的連線權重 (`travel_time_min`)。
+3. **動態路徑導航**：Agent 呼叫 Dijkstra 演算法時，會自動繞過高延誤路段，提供旅客最快抵達路徑。
+
+### 7.2 資料庫 Schema 異動 (Schema Changes)
+* **PostgreSQL (`delay_records`)**:
+  ```sql
+  CREATE TABLE delay_records (
+      delay_id         SERIAL       PRIMARY KEY,
+      station_id       VARCHAR(10)  NOT NULL, 
+      line             VARCHAR(10)  NULL,
+      delay_minutes    INTEGER      NOT NULL CHECK (delay_minutes >= 0),
+      disruption_cause TEXT         NOT NULL,
+      reported_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      is_active        BOOLEAN      NOT NULL DEFAULT TRUE
+  );
+  ```
+* **Neo4j**:
+  * 車站節點新增屬性 `delay_minutes` (預設為 `0`)。
+  * 邊關係 (如 `:METRO_LINK`, `:RAIL_LINK`) 新增 `base_travel_time_min` 作為基準時間。當某站點 A 發生延誤時，兩站點間的動態行車時間更新為：
+    `r.travel_time_min = r.base_travel_time_min + stationA.delay_minutes + stationB.delay_minutes`。
+
+### 7.3 關鍵查詢語法 (Key Queries)
+* **PostgreSQL 延誤寫入**:
+  ```sql
+  INSERT INTO delay_records (station_id, line, delay_minutes, disruption_cause)
+  VALUES (%s, %s, %s, %s) RETURNING delay_id;
+  ```
+* **Neo4j 動態權重更新**:
+  ```cypher
+  MATCH (s {station_id: $station_id})
+  SET s.delay_minutes = $delay_minutes
+  WITH s
+  MATCH (s)-[r:METRO_LINK|RAIL_LINK|INTERCHANGE_TO]-(other)
+  SET r.travel_time_min = coalesce(r.base_travel_time_min, r.travel_time_min) 
+                          + $delay_minutes 
+                          + coalesce(other.delay_minutes, 0)
+  ```
+
+### 7.4 測試與驗證證據 (Testing Evidence)
+我們編寫了自動化測試 `scratch/test_hardening.py`，成功驗證以下行為：
+1. **基準狀態**：車站 `NR03` (Old Town Junction) 的基準連線時間為 15 分鐘。
+2. **延誤申報**：申報 `NR03` 延誤 15 分鐘，PostgreSQL 寫入成功，Neo4j 車站的 `delay_minutes` 被更新為 `15`，且與其相連的所有 RAIL_LINK 權重 `travel_time_min` 自動調整為 `30` 分鐘（基準 15 + 延誤 15），通過驗證。
+3. **延誤解除**：申報 `NR03` 延誤解除（設定為 0），Neo4j 邊權重 `travel_time_min` 自動回復為基準值 15 分鐘，通過驗證。
+4. **Agent 工具鏈整合**：`skeleton/agent.py` 已註冊 `report_disruption` 與 `get_active_delays` 兩個新工具，LLM Agent 可藉此即時分析及申報。
+

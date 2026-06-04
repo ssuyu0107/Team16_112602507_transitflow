@@ -7,8 +7,7 @@ Loads station and network data from train-mock-data/:
   - metro_stations.json         — city metro stations and adjacencies
   - national_rail_stations.json — national rail stations and adjacencies
 
-Design your graph schema (node labels, relationship types, properties)
-based on the data in these files, then implement the seed() function below.
+# TASK 6 EXTENSION: Idempotent MERGE seeding, delay_minutes initialization, base_travel_time_min, and price weights.
 """
 
 import json
@@ -44,11 +43,10 @@ def seed():
         for s in metro_stations:
             session.run(
                 """
-                CREATE (s:MetroStation {
-                    station_id: $station_id,
-                    name: $name,
-                    lines: $lines
-                })
+                MERGE (s:MetroStation {station_id: $station_id})
+                SET s.name = $name, 
+                    s.lines = $lines,
+                    s.delay_minutes = 0
                 """,
                 station_id=s["station_id"],
                 name=s["name"],
@@ -59,11 +57,10 @@ def seed():
         for s in rail_stations:
             session.run(
                 """
-                CREATE (s:NationalRailStation {
-                    station_id: $station_id,
-                    name: $name,
-                    lines: $lines
-                })
+                MERGE (s:NationalRailStation {station_id: $station_id})
+                SET s.name = $name, 
+                    s.lines = $lines,
+                    s.delay_minutes = 0
                 """,
                 station_id=s["station_id"],
                 name=s["name"],
@@ -78,7 +75,10 @@ def seed():
                     MATCH (a:MetroStation {station_id: $station_id})
                     MATCH (b:MetroStation {station_id: $adj_id})
                     MERGE (a)-[r:METRO_LINK {line: $line}]->(b)
-                    SET r.travel_time_min = $travel_time_min
+                    SET r.travel_time_min = $travel_time_min,
+                        r.base_travel_time_min = $travel_time_min,
+                        r.price_standard = 0.5,
+                        r.price_first = 0.5
                     """,
                     station_id=s["station_id"],
                     adj_id=adj["station_id"],
@@ -94,7 +94,10 @@ def seed():
                     MATCH (a:NationalRailStation {station_id: $station_id})
                     MATCH (b:NationalRailStation {station_id: $adj_id})
                     MERGE (a)-[r:RAIL_LINK {line: $line}]->(b)
-                    SET r.travel_time_min = $travel_time_min
+                    SET r.travel_time_min = $travel_time_min,
+                        r.base_travel_time_min = $travel_time_min,
+                        r.price_standard = 1.0,
+                        r.price_first = 2.0
                     """,
                     station_id=s["station_id"],
                     adj_id=adj["station_id"],
@@ -111,7 +114,11 @@ def seed():
                     MATCH (r:NationalRailStation {station_id: $rail_id})
                     MERGE (m)-[i1:INTERCHANGE_TO]->(r)
                     MERGE (r)-[i2:INTERCHANGE_TO]->(m)
-                    SET i1.walk_time_min = 5, i2.walk_time_min = 5
+                    SET i1.walk_time_min = 5, i2.walk_time_min = 5,
+                        i1.travel_time_min = 5, i2.travel_time_min = 5,
+                        i1.base_travel_time_min = 5, i2.base_travel_time_min = 5,
+                        i1.price_standard = 0.0, i1.price_first = 0.0,
+                        i2.price_standard = 0.0, i2.price_first = 0.0
                     """,
                     metro_id=s["station_id"],
                     rail_id=s["interchange_national_rail_station_id"]

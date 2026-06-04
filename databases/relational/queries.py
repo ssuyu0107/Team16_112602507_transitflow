@@ -2,6 +2,7 @@
 TransitFlow — PostgreSQL / Relational Database Layer
 =====================================================
 This module handles all queries to PostgreSQL.
+# TASK 6 EXTENSION: Added report_delay_record and query_active_delays.
 
 TWO ROLES ARE SERVED HERE:
   1. Relational  → dual-network transit (metro + national rail),
@@ -494,64 +495,97 @@ def execute_booking(
         return False, "Invalid date format (expected YYYY-MM-DD)."
 
     with _connect() as conn:
+        conn.autocommit = False
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT stop_order, travel_time_from_origin_min
-                FROM national_rail_stops
-                WHERE schedule_id = %s AND station_id = %s AND is_stop = TRUE
-                """,
-                (schedule_id, origin_station_id)
-            )
-            origin_stop = cur.fetchone()
-            
-            cur.execute(
-                """
-                SELECT stop_order, travel_time_from_origin_min
-                FROM national_rail_stops
-                WHERE schedule_id = %s AND station_id = %s AND is_stop = TRUE
-                """,
-                (schedule_id, destination_station_id)
-            )
-            dest_stop = cur.fetchone()
-            
-            if not origin_stop or not dest_stop:
-                return False, "Origin or destination station not found on this schedule"
-            
-            stops = dest_stop["stop_order"] - origin_stop["stop_order"]
-            if stops <= 0:
-                return False, "Invalid station travel order"
-            
-            cur.execute("SELECT first_train_time FROM national_rail_schedules WHERE schedule_id = %s", (schedule_id,))
-            sch_row = cur.fetchone()
-            if not sch_row:
-                return False, "Schedule not found"
-            
-            first_train_time = sch_row["first_train_time"]
-            origin_min = origin_stop["travel_time_from_origin_min"]
-            origin_sec = first_train_time.hour * 3600 + first_train_time.minute * 60 + first_train_time.second + origin_min * 60
-            dep_hour, dep_min = (origin_sec // 3600) % 24, (origin_sec // 60) % 60
-            departure_time = f"{dep_hour:02d}:{dep_min:02d}"
-            
-            fare_info = query_national_rail_fare(schedule_id, fare_class, stops)
-            if not fare_info:
-                return False, "Fare structure not found for this schedule"
-            amount_usd = fare_info["total_fare_usd"]
-            
-            available_seats = query_available_seats(schedule_id, travel_date, fare_class)
-            if not available_seats:
-                return False, "No available seats on this train for the specified date"
-                
-            selected_seat = None
-            if seat_id == "any":
-                selected_seat = available_seats[0]
-            else:
-                selected_seat = next((s for s in available_seats if s["seat_id"] == seat_id), None)
-                if not selected_seat:
-                    return False, f"Seat {seat_id} is not available on this date"
-            
-            conn.autocommit = False
             try:
+                cur.execute(
+                    """
+                    SELECT stop_order, travel_time_from_origin_min
+                    FROM national_rail_stops
+                    WHERE schedule_id = %s AND station_id = %s AND is_stop = TRUE
+                    """,
+                    (schedule_id, origin_station_id)
+                )
+                origin_stop = cur.fetchone()
+                
+                cur.execute(
+                    """
+                    SELECT stop_order, travel_time_from_origin_min
+                    FROM national_rail_stops
+                    WHERE schedule_id = %s AND station_id = %s AND is_stop = TRUE
+                    """,
+                    (schedule_id, destination_station_id)
+                )
+                dest_stop = cur.fetchone()
+                
+                if not origin_stop or not dest_stop:
+                    return False, "Origin or destination station not found on this schedule"
+                
+                stops = dest_stop["stop_order"] - origin_stop["stop_order"]
+                if stops <= 0:
+                    return False, "Invalid station travel order"
+                
+                cur.execute("SELECT first_train_time FROM national_rail_schedules WHERE schedule_id = %s", (schedule_id,))
+                sch_row = cur.fetchone()
+                if not sch_row:
+                    return False, "Schedule not found"
+                
+                first_train_time = sch_row["first_train_time"]
+                origin_min = origin_stop["travel_time_from_origin_min"]
+                origin_sec = first_train_time.hour * 3600 + first_train_time.minute * 60 + first_train_time.second + origin_min * 60
+                dep_hour, dep_min = (origin_sec // 3600) % 24, (origin_sec // 60) % 60
+                departure_time = f"{dep_hour:02d}:{dep_min:02d}"
+                
+                fare_info = query_national_rail_fare(schedule_id, fare_class, stops)
+                if not fare_info:
+                    return False, "Fare structure not found for this schedule"
+                amount_usd = fare_info["total_fare_usd"]
+                
+                # Fetch all seats for layout
+                cur.execute(
+                    """
+                    SELECT seat_id, coach, row_number, column_letter
+                    FROM seat_layouts
+                    WHERE schedule_id = %s AND fare_class = %s
+                    """,
+                    (schedule_id, fare_class)
+                )
+                all_seats = cur.fetchall()
+                
+                # Concurrency safety: check and lock existing bookings for this schedule & date
+                cur.execute(
+                    """
+                    SELECT seat_id
+                    FROM bookings
+                    WHERE schedule_id = %s AND travel_date = %s AND status = 'confirmed'
+                    FOR UPDATE
+                    """,
+                    (schedule_id, travel_date)
+                )
+                booked_seat_ids = {row["seat_id"] for row in cur.fetchall()}
+                
+                available_seats = []
+                for s in all_seats:
+                    if s["seat_id"] not in booked_seat_ids:
+                        available_seats.append({
+                            "seat_id": s["seat_id"],
+                            "coach": s["coach"],
+                            "row": s["row_number"],
+                            "column": s["column_letter"]
+                        })
+                available_seats.sort(key=lambda x: (x["coach"], x["row"], x["column"]))
+                
+                if not available_seats:
+                    return False, "No available seats on this train for the specified date"
+                    
+                selected_seat = None
+                if seat_id == "any":
+                    selected_seat = available_seats[0]
+                else:
+                    selected_seat = next((s for s in available_seats if s["seat_id"] == seat_id), None)
+                    if not selected_seat:
+                        return False, f"Seat {seat_id} is not available on this date"
+                
                 new_booking_id = _gen_booking_id()
                 new_payment_id = _gen_payment_id()
                 
@@ -604,6 +638,11 @@ def execute_booking(
                     "amount_usd": amount_usd,
                     "payment_id": new_payment_id
                 }
+            except psycopg2.IntegrityError as ie:
+                conn.rollback()
+                if ie.pgcode == '23505':
+                    return False, f"Seat {seat_id} is already booked by another user for this date."
+                return False, f"Database integrity violation: {ie}"
             except Exception as e:
                 conn.rollback()
                 return False, f"Database transaction failed: {e}"
@@ -911,3 +950,57 @@ def store_policy_document(
         with conn.cursor() as cur:
             cur.execute(sql, (title, category, content, vec_str, source_file))
             return cur.fetchone()[0]
+
+
+# ============================================================
+#  TASK 6 EXTENSION: Delay and Disruption Records
+# ============================================================
+
+def query_active_delays() -> list[dict]:
+    """
+    TASK 6 EXTENSION: Retrieve all active delay records.
+    """
+    sql = """
+        SELECT delay_id, station_id, line, delay_minutes, disruption_cause, reported_at
+        FROM delay_records
+        WHERE is_active = TRUE
+        ORDER BY reported_at DESC
+    """
+    with _connect() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql)
+            return cur.fetchall()
+
+
+def report_delay_record(
+    station_id: str,
+    delay_minutes: int,
+    cause: str,
+    line: str = None,
+) -> tuple[bool, str]:
+    """
+    TASK 6 EXTENSION: Report a station delay and insert it into PostgreSQL.
+    Also updates the corresponding node in Neo4j to propagate the delay weight.
+    """
+    sql = """
+        INSERT INTO delay_records (station_id, line, delay_minutes, disruption_cause)
+        VALUES (%s, %s, %s, %s)
+        RETURNING delay_id
+    """
+    try:
+        with _connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (station_id, line, delay_minutes, cause))
+                delay_id = cur.fetchone()[0]
+                conn.commit()
+        
+        # Propagate the delay to Neo4j by updating the station's delay properties or updating links
+        try:
+            from databases.graph.queries import update_neo4j_station_delay
+            update_neo4j_station_delay(station_id, delay_minutes)
+        except Exception as ne:
+            print(f"Failed to propagate delay to Neo4j: {ne}")
+            
+        return True, f"Successfully reported delay (ID: {delay_id}) of {delay_minutes} mins at station {station_id}."
+    except Exception as e:
+        return False, f"Failed to record delay in PostgreSQL: {e}"
