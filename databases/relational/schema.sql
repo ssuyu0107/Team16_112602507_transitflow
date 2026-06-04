@@ -1,16 +1,26 @@
 -- ============================================================
 --  TransitFlow — PostgreSQL 15 Complete Schema
 --  LLM Provider : Ollama (embedding dimension: 768)
---  Design Decision Summary:
---    · metro_stations.lines  → Normalized into metro_station_lines table
---    · bookings.status       → ENUM (confirmed / cancelled / completed)
---    · seat_layouts          → One row per seat (normalized)
---    · payments & feedback   → Dual FK scheme (booking_id_rail / booking_id_metro)
---                              + CHECK CONSTRAINT ensuring exactly one is NOT NULL
---    · Password Storage      → Independent user_credentials table;
---                              Argon2id hash string with embedded salt,
---                              Format: $argon2id$v=...$<salt_b64>$<hash_b64>
---  Seed data is loaded separately by skeleton/seed_postgres.py
+--  TASK 6 EXTENSION: Added delay_records table and seat uniqueness index.
+--
+--  DESIGN DECISIONS & JUSTIFICATIONS:
+--    1. Primary Key Design Decision (VARCHAR vs SERIAL):
+--       - VARCHAR(10) / VARCHAR(20) is chosen for primary entities (stations, users, schedules, bookings)
+--         to store semantic, human-readable codes (e.g. 'MS01', 'RU01', 'BK-A1B2C3'). This allows the
+--         intelligent LLM agent to directly read and pass these IDs in tool parameters without complex lookups.
+--       - SERIAL is chosen for policy_documents and delay_records because they represent sequential,
+--         auto-incrementing data entries with no natural semantic identifiers.
+--    2. Deletion Strategy (Cascade vs Set Null):
+--       - ON DELETE CASCADE is applied to dependent tables (schedule stops, station lines, credentials)
+--         so that deleting a primary record (like a user or station) automatically cleans up its components,
+--         maintaining strict structural integrity.
+--       - ON DELETE SET NULL is used for transaction tables (payments, feedback) to ensure financial audits
+--         and customer feedback logs remain in the system for historical analysis even if a booking is deleted.
+--    3. Normalization:
+--       - metro_stations.lines is normalized into metro_station_lines to prevent array searching.
+--       - seat_layouts contains one row per seat per schedule, enabling transactional booking.
+--    4. XOR Payments & Feedback:
+--       - Dual FK scheme with check constraints ensures exactly one parent booking exists.
 -- ============================================================
 
 
@@ -212,7 +222,9 @@ CREATE TABLE user_credentials (
 -- ============================================================
 
 CREATE TABLE bookings (
+    -- PK Choice: VARCHAR(20) semantic code chosen for booking reference numbers (e.g. BK-A1B2C3).
     booking_id              VARCHAR(20)           PRIMARY KEY,
+    -- Deletion Strategy: RESTRICT (default) is used to prevent deleting users with active bookings.
     user_id                 VARCHAR(10)           NOT NULL
                                 REFERENCES users(user_id),
     schedule_id             VARCHAR(20)           NOT NULL
@@ -232,7 +244,7 @@ CREATE TABLE bookings (
     status                  booking_status_enum   NOT NULL,
     booked_at               TIMESTAMPTZ           NOT NULL DEFAULT NOW(),
     travelled_at            TIMESTAMPTZ,
-    -- Composite FK: Seat must belong to the same schedule
+    -- Composite FK: Seat must belong to the same schedule. Cascade behavior is ON DELETE RESTRICT by default to protect layout.
     FOREIGN KEY (schedule_id, seat_id)
         REFERENCES seat_layouts(schedule_id, seat_id)
 );
@@ -272,7 +284,9 @@ CREATE TABLE metro_travel_history (
 -- ============================================================
 
 CREATE TABLE payments (
+    -- PK Choice: VARCHAR(20) chosen for payment reference codes.
     payment_id        VARCHAR(20)           PRIMARY KEY,
+    -- Deletion Strategy: ON DELETE SET NULL is critical to preserve financial transaction records even if bookings are deleted.
     booking_id_rail   VARCHAR(20)           NULL
                           REFERENCES bookings(booking_id) ON DELETE SET NULL,
     booking_id_metro  VARCHAR(20)           NULL
@@ -294,7 +308,9 @@ CREATE TABLE payments (
 -- ============================================================
 
 CREATE TABLE feedback (
+    -- PK Choice: VARCHAR(20) chosen for feedback entry identification.
     feedback_id       VARCHAR(20)  PRIMARY KEY,
+    -- Deletion Strategy: ON DELETE SET NULL is used so feedback remains for analytical purposes even if the booking is deleted.
     booking_id_rail   VARCHAR(20)  NULL
                           REFERENCES bookings(booking_id) ON DELETE SET NULL,
     booking_id_metro  VARCHAR(20)  NULL
@@ -365,3 +381,26 @@ CREATE INDEX idx_nr_sched_line_type ON national_rail_schedules(line, service_typ
 CREATE INDEX idx_policy_embedding
     ON policy_documents
     USING hnsw (embedding vector_cosine_ops);
+
+-- Seat Uniqueness: Prevent duplicate confirmed bookings on the same schedule, date, and seat.
+-- This ensures that only one booking can be 'confirmed' for a given seat at a time.
+CREATE UNIQUE INDEX idx_bookings_seat_unique 
+    ON bookings (schedule_id, travel_date, seat_id) 
+    WHERE (status = 'confirmed');
+
+
+-- ============================================================
+--  Task 6 Extension: Delay and Disruption Records
+-- ============================================================
+
+-- PK Choice: SERIAL is used as delay records are sequential, auto-incrementing log events.
+-- Deletion Strategy: ON DELETE CASCADE cleans up delay records if the station is removed.
+CREATE TABLE delay_records (
+    delay_id         SERIAL       PRIMARY KEY,
+    station_id       VARCHAR(10)  NOT NULL, -- Polymorphic reference: can be a MetroStation (MSxx) or NationalRailStation (NRxx)
+    line             VARCHAR(10)  NULL,
+    delay_minutes    INTEGER      NOT NULL CHECK (delay_minutes >= 0),
+    disruption_cause TEXT         NOT NULL,
+    reported_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    is_active        BOOLEAN      NOT NULL DEFAULT TRUE
+);
