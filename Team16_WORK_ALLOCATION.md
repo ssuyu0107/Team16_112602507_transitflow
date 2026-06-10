@@ -58,9 +58,9 @@ All members must sum to 100%.
 
 | Member | Estimated % | Brief justification |
 |--------|-----------|---------------------|
-|**周思佑** | **45%** | |
-|**謝怡婕** | **45%** | |
-|**羅小語** | **10%** | |
+|**周思佑** | **45%** |**responsible for the main programming and debugging.** |
+|**謝怡婕** | **45%** |**responsible for the main programming and debugging.** |
+|**羅小語** | **10%** |**AI customer service test and simple form filling**|
 | **Total** | **100%** | |
 
 ---
@@ -72,7 +72,7 @@ If nothing changed, write "No changes."
 
 | Change | Original plan | Revised plan | Reason |
 |--------|--------------|-------------|--------|
-| | | | |
+|**No changes.** |**No changes.** |**No changes.** |**No changes.** |
 
 ---
 
@@ -82,6 +82,6 @@ We confirm that this work allocation accurately reflects how responsibilities we
 
 | Name | Signature / Typed name | Date |
 |------|----------------------|------|
-| | | |
-| | | |
-| | | |
+|**周思佑** | **周思佑** |**2026/06/10** |
+|**謝怡婕** | **謝怡婕** |**2026/06/10** |
+|**羅小語** | **羅小語** |**2026/06/10** |
