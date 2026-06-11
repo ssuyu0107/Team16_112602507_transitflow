@@ -10,7 +10,7 @@
 
 | Full Name | Student ID | GitHub Username | Email |
 |-----------|-----------|----------------|-------|
-|**周思佑** |**112602507** |**ssuyu_0107** | |
+|**周思佑** |**112602507** |**ssuyu_0107** |**sichou983@gmail.com** |
 |**謝怡婕** |**113409503** |**xieyijie60-collab** |**xieyijie60@gmail.com** |
 |**羅小語** |**112602503** |**122lo** |**fivemilk603@gmail.com** |
 
@@ -27,27 +27,25 @@ or reassigned mid-project).
 
 | Task | Primary Owner | Supporting Member(s) | Notes |
 |------|--------------|---------------------|-------|
-| **Task 1** — Relational schema design (`schema.sql`) | | | |
-| **Task 2a** — Core availability & fare queries (`query_national_rail_availability`, `query_metro_schedules`, `query_national_rail_fare`, `query_metro_fare`) | | | |
-| **Task 2b** — Seat & user queries (`query_available_seats`, `query_user_profile`, `query_user_bookings`, `query_payment_info`) | | | |
-| **Task 2c** — Write operations (`execute_booking`, `execute_cancellation`) | | | |
-| **Task 2d** — Authentication queries (`login_user`, `register_user`, `get_user_secret_question`, `verify_secret_answer`, `update_password`) | | | |
-| **Task 3** — PostgreSQL seeding (`seed_postgres.py`) | | | |
-| **Task 4** — Neo4j graph design & seeding (`seed_neo4j.py`, `seed.cypher`) | | | |
-| **Task 5** — Neo4j query functions (`graph/queries.py`) | | | |
-| **Task 6** *(if attempted)* — Optional extension | | | |
+| **Task 1** — Relational schema design (`schema.sql`) |**周思佑**  |**羅小語** |------- |
+| **Task 2a** — Core availability & fare queries (`query_national_rail_availability`, `query_metro_schedules`, `query_national_rail_fare`, `query_metro_fare`) |**謝怡婕** |**周思佑** |------- |
+| **Task 2b** — Seat & user queries (`query_available_seats`, `query_user_profile`, `query_user_bookings`, `query_payment_info`) |**周思佑**  |**謝怡婕** |------- |
+| **Task 2c** — Write operations (`execute_booking`, `execute_cancellation`) |**周思佑**  |**謝怡婕** |------- |
+| **Task 2d** — Authentication queries (`login_user`, `register_user`, `get_user_secret_question`, `verify_secret_answer`, `update_password`) |**謝怡婕** |**羅小語** |------- |
+| **Task 3** — PostgreSQL seeding (`seed_postgres.py`) |**謝怡婕** |**周思佑** |------- |
+| **Task 4** — Neo4j graph design & seeding (`seed_neo4j.py`, `seed.cypher`) |**周思佑**  |**謝怡婕** |------- |
+| **Task 5** — Neo4j query functions (`graph/queries.py`) |**周思佑**  |**謝怡婕** |------- |
 
 ### Design Document
 
 | Section | Primary Author | Supporting Member(s) | Notes |
 |---------|--------------|---------------------|-------|
-| Section 1 — ER Diagram | | | |
-| Section 2 — Normalisation Justification | | | |
-| Section 3 — Graph Database Design Rationale | | | |
-| Section 4 — Vector / RAG Design | | | |
-| Section 5 — AI Tool Usage Evidence | | | |
-| Section 6 — Reflection & Trade-offs | | | |
-| Section 7 — Optional Extension *(if applicable)* | | | |
+| Section 1 — ER Diagram |**周思佑** |**謝怡婕** |------- |
+| Section 2 — Normalisation Justification |**周思佑** |**謝怡婕** |------- |
+| Section 3 — Graph Database Design Rationale |**謝怡婕** |**周思佑** |------- |
+| Section 4 — Vector / RAG Design |**謝怡婕** |**周思佑** |------- |
+| Section 5 — AI Tool Usage Evidence |**羅小語** |**周思佑** |------- |
+| Section 6 — Reflection & Trade-offs |**謝怡婕** |**羅小語** |------- |
 
 ---
 
@@ -61,7 +59,7 @@ All members must sum to 100%.
 |**周思佑** | **45%** |**responsible for the main programming and debugging.** |
 |**謝怡婕** | **45%** |**responsible for the main programming and debugging.** |
 |**羅小語** | **10%** |**AI customer service test and simple form filling**|
-| **Total** | **100%** | |
+| **Total** | **100%** |--------------------- |
 
 ---
 
@@ -82,6 +80,6 @@ We confirm that this work allocation accurately reflects how responsibilities we
 
 | Name | Signature / Typed name | Date |
 |------|----------------------|------|
-|**周思佑** | **周思佑** |**2026/06/10** |
-|**謝怡婕** | **謝怡婕** |**2026/06/10** |
-|**羅小語** | **羅小語** |**2026/06/10** |
+|**周思佑** | **周思佑** |**2026/06/11** |
+|**謝怡婕** | **謝怡婕** |**2026/06/11** |
+|**羅小語** | **羅小語** |**2026/06/11** |
